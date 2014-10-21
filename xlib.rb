@@ -40,7 +40,7 @@ module Xlib
   ], :int
 
   module Events
-    class Motion < FFI::Struct
+    class ButtonPress < FFI::Struct
       layout :c_type, :int,
              :serial, :ulong,
              :send_event, :int,
@@ -58,9 +58,45 @@ module Xlib
              :same_screen, :int
 
       def to_s
-        "<Xlib::Events::Motion:#{self.object_id}> #{self.members.map { |m| [m, self[m]]}}"
+        "<Xlib::Events::ButtonPress:#{self.object_id}> #{self.members.map { |m| [m, self[m]]}}"
       end
     end
+
+    KEY_PRESS = 2
+    KEY_RELEASE = 3
+    BUTTON_PRESS = 4
+    BUTTON_RELEASE = 5
+    MOTION_NOTIFY = 6
+    ENTER_NOTIFY = 7
+    LEAVE_NOTIFY = 8
+    FOCUS_IN = 9
+    FOCUS_OUT = 10
+    KEYMAP_NOTIFY = 11
+    EXPOSE = 12
+    GRAPHICS_EXPOSE = 13
+    NO_EXPOSE = 14
+    VISIBILITY_NOTIFY = 15
+    CREATE_NOTIFY = 16
+    DESTROY_NOTIFY = 17
+    UNMAP_NOTIFY = 18
+    MAP_NOTIFY = 19
+    MAP_REQUEST = 20
+    REPARENT_NOTIFY = 21
+    CONFIGURE_NOTIFY = 22
+    CONFIGURE_REQUEST = 23
+    GRAVITY_NOTIFY = 24
+    RESIZE_REQUEST = 25
+    CIRCULATE_NOTIFY = 26
+    CIRCULATE_REQUEST = 27
+    PROPERTY_NOTIFY = 28
+    SELECTION_CLEAR = 29
+    SELECTION_REQUEST = 30
+    SELECTION_NOTIFY = 31
+    COLORMAP_NOTIFY = 32
+    CLIENT_MESSAGE = 33
+    MAPPING_NOTIFY = 34
+    GENERIC_EVENT = 35
+    LAST_EVENT = 36
 
     # Return a distinct event class for the given event
     #
@@ -68,8 +104,8 @@ module Xlib
     # @return [Object]
     def self.distinct_event_for(event)
       case event[:c_type]
-        when 4
-          return Motion.new(event.to_ptr)
+        when BUTTON_PRESS
+          return ButtonPress.new(event.to_ptr)
         else
           return event
       end
@@ -79,7 +115,7 @@ module Xlib
 
   class Event < FFI::Union
     layout :c_type, :int,
-           :xmotion, Events::Motion
+           :xbutton, Events::ButtonPress
   end
 
   attach_function :next, :XNextEvent, [
