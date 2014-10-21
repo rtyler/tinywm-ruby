@@ -101,11 +101,12 @@ module TinyWM
     if event.is_a? Xlib::Events::ButtonRelease
       log 'button released'
       @start_event = nil
+      @attrs = nil
       Xlib.ungrab_pointer(event[:display], 0)
     end
 
     if event.is_a? Xlib::Events::MotionNotify
-      return if @start_event.nil?
+      return if (@start_event.nil? || @attrs.nil?)
 
       x_diff = event[:x_root] - @start_event[:x_root]
       y_diff = event[:y_root] - @start_event[:y_root]
@@ -188,6 +189,6 @@ end
 
 
 if $0 == __FILE__
-  TinyWM.log 'Starting TinyWM'
+  TinyWM.log "Starting TinyWM (#{RUBY_VERSION}:#{RUBY_PLATFORM})"
   exit TinyWM.run!
 end
