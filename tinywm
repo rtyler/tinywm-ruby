@@ -43,23 +43,93 @@ module TinyWM
 
   def self.event_loop(display_ptr)
     loop do
-      # Grab the pending events so we don't have to block the Ruby VM on
-      # C-level blockers in Xlib#next
-      pending = Xlib.pending(display_ptr)
+      event = acquire_event(display_ptr)
+      next if event.nil?
+      handle_event(Xlib::Events.distinct_event_for(event))
+    end
+  end
 
-      if pending == 0
-        # Avoid CPU-busylooping
-        sleep 0.2
+  # Acquire an event if there is one pending
+  #
+  # @param [FFI::Pointer] display_ptr
+  # @return [NilClass] if we have no events
+  # @return [Xlib::Event] untyped, generic event struct
+  def self.acquire_event(display_ptr)
+    # Grab the pending events so we don't have to block the Ruby VM on
+    # C-level blockers in Xlib#next
+    pending = Xlib.pending(display_ptr)
+
+    if pending == 0
+      # Avoid CPU-busylooping
+      sleep 0.2
+      return nil
+    end
+
+    event = Xlib::Event.new
+    success  = !!(Xlib.next(display_ptr, event.to_ptr))
+    return event if success
+  end
+
+  def self.handle_event(event)
+    if event.is_a? Xlib::Events::KeyPress
+      if event[:subwindow] != 0
+        log 'raising window'
+        Xlib.raise_window(event[:display], event[:window])
+      end
+    end
+
+    if event.is_a? Xlib::Events::ButtonPress
+      log 'button pressed!'
+      Xlib.grab_pointer(event[:display],
+                        event[:subwindow],
+                        1,
+                        (Xlib::Masks::POINTER_MOTION | Xlib::Masks::BUTTON_RELEASE),
+                        Xlib::Mode::GRAB_MODE_ASYNC,
+                        Xlib::Mode::GRAB_MODE_ASYNC,
+                        0,
+                        0,
+                        0)
+
+      # Need to hold onto this for the move
+      @start_event = event
+      @attrs = Xlib::WindowAttributes.new
+      Xlib.window_attributes(event[:display],
+                             event[:subwindow],
+                             @attrs)
+    end
+
+    if event.is_a? Xlib::Events::ButtonRelease
+      log 'button released'
+      @start_event = nil
+      Xlib.ungrab_pointer(event[:display], 0)
+    end
+
+    if event.is_a? Xlib::Events::MotionNotify
+      return if @start_event.nil?
+
+      x_diff = event[:x_root] - @start_event[:x_root]
+      y_diff = event[:y_root] - @start_event[:y_root]
+      x = @attrs[:x]
+      y = @attrs[:y]
+      width = @attrs[:width]
+      height = @attrs[:height]
+
+      if @start_event[:button] == 1 # left mouse
+        x = (x + x_diff)
+        y = (y + y_diff)
+      elsif @start_event[:button] == 3 # right mouse
+        width = [1, width + x_diff].max
+        height = [1, height + y_diff].max
+      else
+        # lolwut
       end
 
-      # Loop over all the pending events
-      until pending == 0
-        pending = pending - 1
-        event = Xlib::Event.new
-        success  = !!(Xlib.next(display_ptr, event.to_ptr))
-        log "event captured => #{success}"
-        puts Xlib::Events.distinct_event_for(event)
-      end
+      Xlib.move_or_resize_window(event[:display],
+                                 event[:window],
+                                 x,
+                                 y,
+                                 width,
+                                 height)
     end
   end
 

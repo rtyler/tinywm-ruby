@@ -39,6 +39,23 @@ module Xlib
                   :int,     # cursor type
   ], :int
 
+  attach_function :raise_window, :XRaiseWindow, [:pointer, :ulong], :int
+
+  attach_function :grab_pointer, :XGrabPointer, [
+                    :pointer, # display
+                    :ulong, # window
+                    :int, # owner events
+                    :uint, # event mask
+                    :int, # pointer mode
+                    :int, # keyboard mode
+                    :ulong, # window to confine to
+                    :ulong, # cursor type
+                    :ulong, # time
+  ], :int
+
+  attach_function :ungrab_pointer, :XUngrabPointer, [:pointer, :ulong], :int
+
+
   module Events
     class BaseEvent < FFI::Struct
       def to_s
@@ -63,6 +80,7 @@ module Xlib
              :keycode, :uint,
              :same_screen, :int
     end
+    KeyRelease = KeyPress.dup
 
     class ButtonPress < BaseEvent
       layout :c_type, :int,
@@ -78,9 +96,14 @@ module Xlib
              :x_root, :int,
              :y_root, :int,
              :state, :uint,
+             :button, :uint,
              :hint, :char,
              :same_screen, :int
     end
+    ButtonRelease = ButtonPress.dup
+
+    # MotionNotify has the same structure as the botton press events
+    MotionNotify = ButtonPress.dup
 
     KEY_PRESS = 2
     KEY_RELEASE = 3
@@ -126,8 +149,14 @@ module Xlib
       case event[:c_type]
       when KEY_PRESS
         return KeyPress.new(event.to_ptr)
+      when KEY_RELEASE
+        return KeyRelease.new(event.to_ptr)
       when BUTTON_PRESS
         return ButtonPress.new(event.to_ptr)
+      when BUTTON_RELEASE
+        return ButtonRelease.new(event.to_ptr)
+      when MOTION_NOTIFY
+        return MotionNotify.new(event.to_ptr)
       else
         return event
       end
@@ -141,9 +170,50 @@ module Xlib
            :xbutton, Events::ButtonPress
   end
 
+  class WindowAttributes < FFI::Struct
+    layout :x, :int,
+           :y, :int,
+           :width, :int,
+           :height, :int,
+           :border_width, :int,
+           :depth, :int,
+           :visual, :ulong,
+           :root_window, :ulong,
+           :class, :int,
+           :bit_gravity, :int,
+           :lin_gravity, :int,
+           :backing_store, :int,
+           :backing_planes, :ulong,
+           :backing_pixel, :ulong,
+           :save_under, :int,
+           :colormap, :ulong,
+           :map_installed, :int,
+           :map_state, :int,
+           :event_masks, :long,
+           :your_event_mask, :long,
+           :dont_propogate_mask, :long,
+           :override_redirect, :int,
+           :screen, :pointer
+  end
+
   attach_function :next, :XNextEvent, [
                     :pointer, # display pointer
                     Event, # event pointer
+  ], :int
+
+  attach_function :window_attributes, :XGetWindowAttributes, [
+                    :pointer, # display
+                    :ulong, # window
+                    WindowAttributes, # attributes pointer
+  ], :int
+
+  attach_function :move_or_resize_window, :XMoveResizeWindow, [
+                    :pointer, # display,
+                    :ulong, # window
+                    :int, # x
+                    :int, # y,
+                    :uint, # width,
+                    :uint, # height
   ], :int
 
   module Mode
