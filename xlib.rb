@@ -40,7 +40,31 @@ module Xlib
   ], :int
 
   module Events
-    class ButtonPress < FFI::Struct
+    class BaseEvent < FFI::Struct
+      def to_s
+        "<#{self.class.name}:#{self.object_id}> #{self.members.map { |m| [m, self[m]]}}"
+      end
+    end
+
+    class KeyPress < BaseEvent
+      layout :c_type, :int,
+             :serial, :ulong,
+             :send_event, :int,
+             :display, :pointer,
+             :window, :ulong,
+             :root, :ulong,
+             :subwindow, :ulong,
+             :time, :ulong,
+             :x, :int,
+             :y, :int,
+             :x_root, :int,
+             :y_root, :int,
+             :state, :uint,
+             :keycode, :uint,
+             :same_screen, :int
+    end
+
+    class ButtonPress < BaseEvent
       layout :c_type, :int,
              :serial, :ulong,
              :send_event, :int,
@@ -56,10 +80,6 @@ module Xlib
              :state, :uint,
              :hint, :char,
              :same_screen, :int
-
-      def to_s
-        "<Xlib::Events::ButtonPress:#{self.object_id}> #{self.members.map { |m| [m, self[m]]}}"
-      end
     end
 
     KEY_PRESS = 2
@@ -104,10 +124,12 @@ module Xlib
     # @return [Object]
     def self.distinct_event_for(event)
       case event[:c_type]
-        when BUTTON_PRESS
-          return ButtonPress.new(event.to_ptr)
-        else
-          return event
+      when KEY_PRESS
+        return KeyPress.new(event.to_ptr)
+      when BUTTON_PRESS
+        return ButtonPress.new(event.to_ptr)
+      else
+        return event
       end
     end
   end
@@ -115,6 +137,7 @@ module Xlib
 
   class Event < FFI::Union
     layout :c_type, :int,
+           :xkeypress, Events::KeyPress,
            :xbutton, Events::ButtonPress
   end
 
