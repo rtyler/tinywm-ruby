@@ -56,9 +56,9 @@ module TinyWM
       until pending == 0
         pending = pending - 1
         event = Xlib::Event.new
-        success  = Xlib.next(display_ptr, event.to_ptr)
+        success  = !!(Xlib.next(display_ptr, event.to_ptr))
         log "event captured => #{success}"
-        log "event => #{event.inspect}"
+        puts Xlib::Events.distinct_event_for(event)
       end
     end
   end
@@ -72,7 +72,7 @@ module TinyWM
                           1, # yes to owner events
                           Xlib::Mode::GRAB_MODE_ASYNC,
                           Xlib::Mode::GRAB_MODE_ASYNC))
-    log "Setting up Mod4+F1 => #{rc}"
+    log "Setting up Mod4+F1 for window raising => #{rc}"
 
     rc = !!(Xlib.grab_button(display_ptr,
                              1, # left-mouse

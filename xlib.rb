@@ -39,18 +39,53 @@ module Xlib
                   :int,     # cursor type
   ], :int
 
+  module Events
+    class Motion < FFI::Struct
+      layout :c_type, :int,
+             :serial, :ulong,
+             :send_event, :int,
+             :display, :pointer,
+             :window, :ulong,
+             :root, :ulong,
+             :subwindow, :ulong,
+             :time, :ulong,
+             :x, :int,
+             :y, :int,
+             :x_root, :int,
+             :y_root, :int,
+             :state, :uint,
+             :hint, :char,
+             :same_screen, :int
+
+      def to_s
+        "<Xlib::Events::Motion:#{self.object_id}> #{self.members.map { |m| [m, self[m]]}}"
+      end
+    end
+
+    # Return a distinct event class for the given event
+    #
+    # @param [Xlib::Event] event
+    # @return [Object]
+    def self.distinct_event_for(event)
+      case event[:c_type]
+        when 4
+          return Motion.new(event.to_ptr)
+        else
+          return event
+      end
+    end
+  end
+
+
   class Event < FFI::Union
-    layout :c_type, :int
+    layout :c_type, :int,
+           :xmotion, Events::Motion
   end
 
   attach_function :next, :XNextEvent, [
                     :pointer, # display pointer
                     Event, # event pointer
   ], :int
-
-  module Events
-  end
-
 
   module Mode
     GRAB_MODE_SYNC = 0
