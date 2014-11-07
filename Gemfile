@@ -1,6 +1,7 @@
 source 'https://rubygems.org'
 
 gem 'ffi'
+gem 'ffi-swig-generator'
 gem 'colorize'
 
 group :development do
