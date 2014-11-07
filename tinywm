@@ -9,28 +9,27 @@
 require 'rubygems'
 require 'colorize'
 
-require_relative 'xlib'
+require_relative 'xcb'
 
 module TinyWM
   # Start the window manager and block until it's dead
   def self.run!
-    display = Xlib.open_display(nil)
+    connection = Xcb.connect(nil, nil)
 
-    if display.null?
+    if connection.null?
       error 'Failed to open an X11 display!'
       return 1
     end
 
-    log "Opened display #{display}"
+    log "Opened connection to display (#{connection})"
 
-    root = Xlib.root_window(display)
+    screen = Xcb.first_screen(connection)
+    log "Acquired root window: #{screen[:root]}"
 
-    log "Acquired root window: #{root}"
-
-    setup_keys_for(display, root)
+    setup_keys_for(connection, screen[:root])
 
     begin
-      event_loop(display)
+      event_loop(connection)
     rescue Interrupt
       log 'Exiting'
     rescue StandardError => ex
@@ -41,33 +40,17 @@ module TinyWM
     return 0
   end
 
-  def self.event_loop(display_ptr)
+  def self.event_loop(connection)
     loop do
-      event = acquire_event(display_ptr)
-      next if event.nil?
-      handle_event(Xlib::Events.distinct_event_for(event))
+      event = Xcb.poll_for_event(connection)
+      if event.null?
+        sleep 0.2
+        next
+      end
+      log 'event!'
+
+      #handle_event(Xlib::Events.distinct_event_for(event))
     end
-  end
-
-  # Acquire an event if there is one pending
-  #
-  # @param [FFI::Pointer] display_ptr
-  # @return [NilClass] if we have no events
-  # @return [Xlib::Event] untyped, generic event struct
-  def self.acquire_event(display_ptr)
-    # Grab the pending events so we don't have to block the Ruby VM on
-    # C-level blockers in Xlib#next
-    pending = Xlib.pending(display_ptr)
-
-    if pending == 0
-      # Avoid CPU-busylooping
-      sleep 0.2
-      return nil
-    end
-
-    event = Xlib::Event.new
-    success  = !!(Xlib.next(display_ptr, event.to_ptr))
-    return event if success
   end
 
   def self.handle_event(event)
@@ -134,40 +117,25 @@ module TinyWM
     end
   end
 
-  def self.setup_keys_for(display_ptr, root_window)
-    rc = !!(Xlib.grab_key(display_ptr,
-                          Xlib::Keys.symbol_to_code(display_ptr,
-                                       Xlib::Keys.string_to_symbol('F1')),
-                          Xlib::Keys::MOD_4,
-                          root_window,
-                          1, # yes to owner events
-                          Xlib::Mode::GRAB_MODE_ASYNC,
-                          Xlib::Mode::GRAB_MODE_ASYNC))
-    log "Setting up Mod4+F1 for window raising => #{rc}"
+  def self.setup_keys_for(connection, root_window)
+    log 'Setting up keys'
+    #xcb_grab_button(dpy, 0, root, XCB_EVENT_MASK_BUTTON_PRESS | 
+    #            XCB_EVENT_MASK_BUTTON_RELEASE, XCB_GRAB_MODE_ASYNC, 
+    #            XCB_GRAB_MODE_ASYNC, root, XCB_NONE, 1, XCB_MOD_MASK_1);
 
-    rc = !!(Xlib.grab_button(display_ptr,
-                             1, # left-mouse
-                             Xlib::Keys::MOD_4,
-                             root_window,
-                             1, # yes to owner events,
-                             Xlib::Masks::BUTTON_PRESS,
-                             Xlib::Mode::GRAB_MODE_ASYNC,
-                             Xlib::Mode::GRAB_MODE_ASYNC,
-                            0,
-                            0))
-    log "Setting Mod4+LeftMouseClick for moving => #{rc}"
+    cookie = Xcb.grab_button(connection,
+                    0,
+                    root_window,
+                    Xcb::Masks::BUTTON_PRESS | Xcb::Masks::BUTTON_RELEASE,
+                    Xcb::Masks::MODE_ASYNC,
+                    Xcb::Masks::MODE_ASYNC,
+                    root_window,
+                    Xcb::Masks::NONE,
+                    1,
+                    Xcb::Masks::MOD_MASK_1)
+    log "grab_button, cooke => #{cookie}"
 
-    rc = !!(Xlib.grab_button(display_ptr,
-                             3, # right mouse
-                             Xlib::Keys::MOD_4,
-                             root_window,
-                             1, # yes to owner events,
-                             Xlib::Masks::BUTTON_PRESS,
-                             Xlib::Mode::GRAB_MODE_ASYNC,
-                             Xlib::Mode::GRAB_MODE_ASYNC,
-                            0,
-                            0))
-    log "Setting Mod4+RightMouseClick for resize => #{rc}"
+
   end
 
   def self.log(message)
